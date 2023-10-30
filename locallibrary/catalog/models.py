@@ -35,6 +35,11 @@ class Book(models.Model):
     def get_absolute_url(self):
         return reverse('book-detail', args=[str(self.id)])
 
+    def display_genre(self):
+        return ', '.join([genre.name for genre in self.genre.all()[:3]])
+
+    display_genre.short_description = 'Genre'
+
 
 class BookInstance(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4,
@@ -45,7 +50,7 @@ class BookInstance(models.Model):
 
     LOAN_STATUS = (
         ('m', 'Обслуживается'),
-        ('o', 'Взаймы'),
+        ('o', 'Выдана'),
         ('a', 'Доступна'),
         ('r', 'Зарезервирована'),
     )
