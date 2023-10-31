@@ -1,7 +1,13 @@
-from django.contrib.auth.mixins import LoginRequiredMixin
-from django.shortcuts import render
+import datetime
+
+from django.contrib.auth.decorators import permission_required
+from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
+from django.http import HttpResponseRedirect
+from django.shortcuts import render, get_object_or_404
+from django.urls import reverse, reverse_lazy
 from django.views import generic
 
+from .forms import RenewBookModelForm
 from .models import Book, Author, BookInstance, Genre
 
 
@@ -70,3 +76,73 @@ class LoanedBooksByUserListView(LoginRequiredMixin, generic.ListView):
 
     def get_queryset(self):
         return BookInstance.objects.filter(borrower=self.request.user).filter(status__exact='o').order_by('due_back')
+
+
+@permission_required('catalog.can_mark_returned')
+def renew_book_librarian(request, pk):
+    book_instance = get_object_or_404(BookInstance, pk=pk)
+
+    if request.method == 'POST':
+
+        # Create a form instance and populate it with data from the request (binding):
+        form = RenewBookModelForm(request.POST)
+
+        if form.is_valid():
+            book_instance.due_back = form.cleaned_data['due_back']
+            book_instance.save()
+
+            return HttpResponseRedirect(reverse('borrowed-books'))
+
+    else:
+        proposed_renewal_date = datetime.date.today() + datetime.timedelta(weeks=3)
+        form = RenewBookModelForm(initial={'due_back': proposed_renewal_date})
+
+    context = {
+        'form': form,
+        'book_instance': book_instance,
+    }
+
+    return render(request, 'catalog/renew_book_librarian.html', context)
+
+
+class AuthorCreate(PermissionRequiredMixin, generic.CreateView):
+    permission_required = 'catalog.add_author'
+    model = Author
+    fields = ['first_name', 'last_name', 'date_of_birth', 'date_of_death']
+    initial = {'date_of_death': '11/06/2020'}
+    permission_denied_message = 'Вы не являетесь администратором для управления авторами'
+
+
+class AuthorUpdate(PermissionRequiredMixin, generic.UpdateView):
+    permission_required = 'catalog.change_author'
+    model = Author
+    fields = '__all__'
+    permission_denied_message = 'Вы не являетесь администратором для управления авторами'
+
+
+class AuthorDelete(PermissionRequiredMixin, generic.DeleteView):
+    permission_required = 'catalog.delete_author'
+    model = Author
+    success_url = reverse_lazy('books')
+    permission_denied_message = 'Вы не являетесь администратором для управления авторами'
+
+
+class BookCreate(PermissionRequiredMixin, generic.CreateView):
+    permission_required = 'catalog.add_book'
+    model = Book
+    fields = '__all__'
+    permission_denied_message = 'Вы не являетесь администратором для управления книгами'
+
+
+class BookUpdate(PermissionRequiredMixin, generic.UpdateView):
+    permission_required = 'catalog.change_book'
+    model = Book
+    fields = '__all__'
+    permission_denied_message = 'Вы не являетесь администратором для управления книгами'
+
+
+class BookDelete(PermissionRequiredMixin, generic.DeleteView):
+    permission_required = 'catalog.delete_book'
+    model = Book
+    success_url = reverse_lazy('books')
+    permission_denied_message = 'Вы не являетесь администратором для управления книгами'
